@@ -65,7 +65,7 @@ export class Stage extends Phaser.Scene {
       }
     });
 
-    const music = this.sound.add('music_stage1', { loop: true, volume: 0.35 });
+    const music = this.sound.add('music_stage1', { loop: true, volume: 0.175 });
     music.play();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       music.destroy();
@@ -116,8 +116,9 @@ export class Stage extends Phaser.Scene {
       } else if (e.type === 'pickup') {
         this.sound.play('pickup', { volume: 0.6 });
       } else if (e.type === 'land') {
-        this.sound.play('thud', { volume: 0.5 });
-        this.shake = Math.max(this.shake, 4);
+        // Only the first impact is audible. The bounce that follows gets a light shake and no sound.
+        if (!e.second) this.sound.play('thud', { volume: 0.5 });
+        this.shake = Math.max(this.shake, e.second ? 2 : 4);
       }
     }
   }

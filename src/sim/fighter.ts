@@ -232,7 +232,7 @@ export function updateFighter(f: Fighter, events: SimEvent[]): void {
       f.vz -= GRAVITY;
       if (f.z <= 0) {
         f.z = 0;
-        events.push({ type: 'land', x: f.x, y: f.y });
+        events.push({ type: 'land', x: f.x, y: f.y, second: f.bounced });
         if (!f.bounced) {
           f.bounced = true;
           f.vz = 2.2;

@@ -118,7 +118,8 @@ export interface Intent {
 
 export type SimEvent =
   | { type: 'hit'; x: number; y: number; z: number; heavy: boolean; targetId: number; byPlayer: boolean }
-  | { type: 'land'; x: number; y: number }
+  /** A knocked-down fighter hits the ground twice: the impact, then a small bounce (second: true). */
+  | { type: 'land'; x: number; y: number; second: boolean }
   | { type: 'ko'; id: number }
   | { type: 'break'; x: number; y: number }
   | { type: 'pickup'; kind: 'food' | 'points'; x: number; y: number }

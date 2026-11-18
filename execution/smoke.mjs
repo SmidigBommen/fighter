@@ -35,6 +35,8 @@ const tap = async (key, gap = 150) => { await page.keyboard.press(key, { delay: 
 page.on('response', (r) => r.status() >= 400 && errors.push(`${r.status()} ${r.url()}`));
 await page.goto(url);
 await page.waitForTimeout(1500);
+await shot('0-intro');
+await tap('Enter', 900); // skip the intro
 await shot('1-title');
 await tap('Enter', 500);
 await tap('h', 50);

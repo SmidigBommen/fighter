@@ -14,7 +14,7 @@ export class GameOver extends Phaser.Scene {
     const prompt = label(this, VIEW_W / 2, VIEW_H - 50, 'PRESS ENTER', 0.5);
     this.tweens.add({ targets: prompt, alpha: 0.15, duration: 500, yoyo: true, repeat: -1 });
 
-    const music = this.sound.add('music_end', { loop: false, volume: 0.4 });
+    const music = this.sound.add('music_end', { loop: false, volume: 0.2 });
     if (data.cleared) music.play();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => music.destroy());
     this.input.keyboard!.once('keydown-ENTER', () => this.scene.start('Title'));

@@ -32,6 +32,6 @@ export class Boot extends Phaser.Scene {
 
   create(): void {
     registerFont(this);
-    this.scene.start('Title');
+    this.scene.start('Intro');
   }
 }

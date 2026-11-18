@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Boot } from './scenes/Boot';
 import { GameOver } from './scenes/GameOver';
+import { Intro } from './scenes/Intro';
 import { Stage } from './scenes/Stage';
 import { Title } from './scenes/Title';
 import { VIEW_H, VIEW_W } from './sim/types';
@@ -19,7 +20,7 @@ const game = new Phaser.Game({
   pixelArt: true,
   roundPixels: true,
   scale: { mode: Phaser.Scale.NONE, zoom: integerZoom(), autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [Boot, Title, Stage, GameOver],
+  scene: [Boot, Intro, Title, Stage, GameOver],
 });
 
 window.addEventListener('resize', () => game.scale.setZoom(integerZoom()));
