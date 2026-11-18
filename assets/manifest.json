@@ -1,0 +1,260 @@
+[
+  {
+    "id": "streets-of-fight",
+    "role": "core: stage tileset, parallax background, props, player, punk enemy",
+    "page": "https://opengameart.org/content/streets-of-fight",
+    "title": "Streets of Fight",
+    "author": "ansimuz",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "streets_of_fight_files.zip",
+        "url": "https://opengameart.org/sites/default/files/streets_of_fight_files.zip",
+        "bytes": 294867,
+        "sha256": "3dead7bae39dd5b250504e6a4dd636d8f05243a6f766c85f4b4ebfeed27c51bc",
+        "unpacked_files": 98
+      }
+    ]
+  },
+  {
+    "id": "renegade-sms",
+    "role": "character: 8-bit brawler",
+    "page": "https://opengameart.org/content/brawler-asset-character-renegade-sms",
+    "title": "Brawler Asset Character 'Renegade' SMS",
+    "author": "Chasersgaming",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "SMS BRAWLER Character Renegade FREE FILES_0.zip",
+        "url": "https://opengameart.org/sites/default/files/SMS%20BRAWLER%20Character%20Renegade%20FREE%20FILES_0.zip",
+        "bytes": 31337,
+        "sha256": "1fbfeba3d384cd6bb947f907e046546dc4cb5bb0d4d974427859f1a52786c188",
+        "unpacked_files": 23
+      }
+    ]
+  },
+  {
+    "id": "ranger-sms",
+    "role": "character: 8-bit brawler",
+    "page": "https://opengameart.org/content/brawler-asset-character-ranger-sms",
+    "title": "Brawler Asset Character 'Ranger' SMS",
+    "author": "Chasersgaming",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "sms_ranger_free_files.zip",
+        "url": "https://opengameart.org/sites/default/files/sms_ranger_free_files.zip",
+        "bytes": 36061,
+        "sha256": "27e8fb291e12bc47796c6a56c6b073d5afa13d4ee5d893bd6c4f55feb38eccb8",
+        "unpacked_files": 26
+      }
+    ]
+  },
+  {
+    "id": "soldier-nes",
+    "role": "character: 8-bit soldier",
+    "page": "https://opengameart.org/content/brawler-asset-character-soldier-nes",
+    "title": "Brawler Asset Character 'Soldier' NES",
+    "author": "Chasersgaming",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "nes_soldier_free_files.zip",
+        "url": "https://opengameart.org/sites/default/files/nes_soldier_free_files.zip",
+        "bytes": 39959,
+        "sha256": "e212eb7fb9443ddb1d81974271ef6656f6ff93cd8eed10c6655f259097c27252",
+        "unpacked_files": 28
+      }
+    ]
+  },
+  {
+    "id": "market-street-sms",
+    "role": "stage: 8-bit street tileset",
+    "page": "https://opengameart.org/content/brawler-asset-tile-set-market-street-sms",
+    "title": "Brawler Asset Tile Set 'Market Street' SMS",
+    "author": "Chasersgaming",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "SMS Market Street Tile Set Files.zip",
+        "url": "https://opengameart.org/sites/default/files/SMS%20Market%20Street%20Tile%20Set%20Files.zip",
+        "bytes": 45205,
+        "sha256": "718d3a0b3e6ea2c503658052dde8b61bec4506cc9644e4ae89ef3e343b26ed84",
+        "unpacked_files": 6
+      }
+    ]
+  },
+  {
+    "id": "secret-service-building-sms",
+    "role": "stage: 8-bit interior tileset",
+    "page": "https://opengameart.org/content/brawler-assets-tile-set-secret-service-building-sms",
+    "title": "Brawler Assets Tile Set 'Secret Service Building' SMS",
+    "author": "Chasersgaming",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "BEMUP Secret Sevice Tile Set.zip",
+        "url": "https://opengameart.org/sites/default/files/BEMUP%20Secret%20Sevice%20Tile%20Set.zip",
+        "bytes": 39526,
+        "sha256": "bfa0b1b0336d90aa4baf569e15ebb439c34cb3121d685d01f0702f54ce79a210",
+        "unpacked_files": 6
+      }
+    ]
+  },
+  {
+    "id": "angry-guy",
+    "role": "character: brawler with two punches, kick, jump punch",
+    "page": "https://opengameart.org/content/angry-guy",
+    "title": "Angry Guy",
+    "author": "nemezes",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "angryGuy.zip",
+        "url": "https://opengameart.org/sites/default/files/angryGuy.zip",
+        "bytes": 506472,
+        "sha256": "a28969faad343d8c57399815da2afac4b4e9dd09d89e3901a4ff7d66d66ab0df",
+        "unpacked_files": 74
+      }
+    ]
+  },
+  {
+    "id": "business-of-rage",
+    "role": "character: beat 'em up fighter",
+    "page": "https://opengameart.org/content/business-of-rage-characeter-beatemup-2d",
+    "title": "Business of rage characeter beatemup 2D",
+    "author": "DidiGameB",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "businessof ragespritesheet_1.png",
+        "url": "https://opengameart.org/sites/default/files/businessof%20ragespritesheet_1.png",
+        "bytes": 18837,
+        "sha256": "ec01754229830fa9d476ba35bfd974b4b760bb5dfa24e0cee952dc418b41780b"
+      },
+      {
+        "name": "ennemy_streetboy-one_spritesheet.png",
+        "url": "https://opengameart.org/sites/default/files/ennemy_streetboy-one_spritesheet.png",
+        "bytes": 2729,
+        "sha256": "702c4600865adf98132eda7a8f29147fecd4321daf9b8182fe5adff55b7f3a3b"
+      },
+      {
+        "name": "ennemy_streetboy-oneB_spritesheet.png",
+        "url": "https://opengameart.org/sites/default/files/ennemy_streetboy-oneB_spritesheet.png",
+        "bytes": 2679,
+        "sha256": "a806fa7b3b4393b5a1313d4af4b40a8618c6f7223f4f446dfd724a96966f65ff"
+      },
+      {
+        "name": "drive-download-level.zip",
+        "url": "https://opengameart.org/sites/default/files/drive-download-level.zip",
+        "bytes": 19535,
+        "sha256": "7d79e5f4bff6dc82112c4b68612e3a54c56a0b1ef6c4f3ba0a8b6cb73f14eb54",
+        "unpacked_files": 3
+      }
+    ]
+  },
+  {
+    "id": "hits-punches",
+    "role": "sfx: punch and hit impacts",
+    "page": "https://opengameart.org/content/37-hitspunches",
+    "title": "37 hits/punches",
+    "author": "qubodup",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "independent_nu_ljudbank-hits_and_punches.7z",
+        "url": "https://opengameart.org/sites/default/files/independent_nu_ljudbank-hits_and_punches.7z",
+        "bytes": 1684480,
+        "sha256": "641c65d2e1a00002171c23e2c6fa14e925ae4c12db09d3f79d130a4538916032",
+        "unpacked_files": 37
+      }
+    ]
+  },
+  {
+    "id": "punch-sfx",
+    "role": "sfx: punch",
+    "page": "https://opengameart.org/content/punch",
+    "title": "Punch",
+    "author": "qubodup",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "qubodupPunch.7z",
+        "url": "https://opengameart.org/sites/default/files/qubodupPunch.7z",
+        "bytes": 200895,
+        "sha256": "757795e8778acc377abacea902052c2dc707583c69d00b8baa2e76b670a02398",
+        "unpacked_files": 10
+      }
+    ]
+  },
+  {
+    "id": "chiptunes-action",
+    "role": "music: action chiptune tracks",
+    "page": "https://opengameart.org/content/5-chiptunes-action",
+    "title": "5 Chiptunes (Action)",
+    "author": "SubspaceAudio",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "5 Action Chiptunes By Juhani Junkala.zip",
+        "url": "https://opengameart.org/sites/default/files/5%20Action%20Chiptunes%20By%20Juhani%20Junkala.zip",
+        "bytes": 49639688,
+        "sha256": "ea189990c0fb9a700187ccc740eda72400341a082305a163867467d96346460d",
+        "unpacked_files": 6
+      }
+    ]
+  },
+  {
+    "id": "music-loops",
+    "role": "music: loops for menus and stages",
+    "page": "https://opengameart.org/content/12-music-loops",
+    "title": "12 Music Loops",
+    "author": "SubspaceAudio",
+    "licenses": [
+      "CC0"
+    ],
+    "fetched": "2026-11-16",
+    "files": [
+      {
+        "name": "12_indie_game_music_loops_0.zip",
+        "url": "https://opengameart.org/sites/default/files/12_indie_game_music_loops_0.zip",
+        "bytes": 33517657,
+        "sha256": "86d86c0095216413e03922b15cf1a9a9b7d390b01e427ed9e9a10f154598a4bd",
+        "unpacked_files": 12
+      }
+    ]
+  }
+]

@@ -1,0 +1,63 @@
+# Asset sources for execution/fetch_assets.py.
+# Each entry is an OpenGameArt page. Licence, author and file links are read from the page.
+# role: what the pack is for in the game.
+
+[[source]]
+id = "streets-of-fight"
+url = "https://opengameart.org/content/streets-of-fight"
+role = "core: stage tileset, parallax background, props, player, punk enemy"
+
+[[source]]
+id = "renegade-sms"
+url = "https://opengameart.org/content/brawler-asset-character-renegade-sms"
+role = "character: 8-bit brawler"
+
+[[source]]
+id = "ranger-sms"
+url = "https://opengameart.org/content/brawler-asset-character-ranger-sms"
+role = "character: 8-bit brawler"
+
+[[source]]
+id = "soldier-nes"
+url = "https://opengameart.org/content/brawler-asset-character-soldier-nes"
+role = "character: 8-bit soldier"
+
+[[source]]
+id = "market-street-sms"
+url = "https://opengameart.org/content/brawler-asset-tile-set-market-street-sms"
+role = "stage: 8-bit street tileset"
+
+[[source]]
+id = "secret-service-building-sms"
+url = "https://opengameart.org/content/brawler-assets-tile-set-secret-service-building-sms"
+role = "stage: 8-bit interior tileset"
+
+[[source]]
+id = "angry-guy"
+url = "https://opengameart.org/content/angry-guy"
+role = "character: brawler with two punches, kick, jump punch"
+
+[[source]]
+id = "business-of-rage"
+url = "https://opengameart.org/content/business-of-rage-characeter-beatemup-2d"
+role = "character: beat 'em up fighter"
+
+[[source]]
+id = "hits-punches"
+url = "https://opengameart.org/content/37-hitspunches"
+role = "sfx: punch and hit impacts"
+
+[[source]]
+id = "punch-sfx"
+url = "https://opengameart.org/content/punch"
+role = "sfx: punch"
+
+[[source]]
+id = "chiptunes-action"
+url = "https://opengameart.org/content/5-chiptunes-action"
+role = "music: action chiptune tracks"
+
+[[source]]
+id = "music-loops"
+url = "https://opengameart.org/content/12-music-loops"
+role = "music: loops for menus and stages"
