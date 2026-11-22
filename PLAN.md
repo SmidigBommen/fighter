@@ -43,8 +43,11 @@ Code layout:
 ```
 src/sim/      pure TypeScript: entities, state machines, hit resolution, enemy AI, waves
 src/data/     frame data, character definitions, stage and wave definitions
-src/scenes/   Phaser scenes: Boot, Title, Stage, GameOver
+src/scenes/   Phaser scenes: Boot, Intro, Title, Stage, GameOver, Ending, NameEntry, Scores
 src/view/     sprite, shadow, HUD and effect rendering driven by sim state
+src/input.ts  keyboard and gamepad as one input
+src/scores.ts score table client (server first, browser storage as fallback)
+server/       production server: static files and the score table API
 assets/raw/   downloaded packs, untouched
 assets/game/  the files the game loads (cut, renamed, edited)
 execution/    project tools
@@ -110,10 +113,53 @@ collected by walking over them.
 The player's knockdown, lying and get-up frames are generated from existing frames by
 `execution/build_assets.py` (`PLAYER_KNOCKDOWN`). Hand-drawn ones can replace that strip later.
 
-Still open: second stage (7), the feel pass, gamepad and two players (8).
+### Status on 2026-11-22
 
-Run with `pnpm dev`. Controls: arrows or WASD to move, Z or J to attack, X, K or Space to jump,
-attack in the air for a jump kick, down plus attack for a dive kick, H to show hitboxes.
+The game is complete from title to ending. Milestones 6 and 7 are done; of 8, gamepad support is
+in and two players is not.
+
+**Stages.** Four, defined in `src/data/stage1.ts` to `stage4.ts` and listed in `src/data/stages.ts`.
+Stages 2 to 4 reuse the tileset in a different order with a colour grade (`STAGES` in
+`execution/build_assets.py`).
+
+| Stage | Name | New in it | Boss |
+|---|---|---|---|
+| 1 | Main Street | punk, runner, bruiser | Big Red: every hit knocks down |
+| 2 | Back Alleys | Lobber (throws bottles), rolling barrels | Volt: charges across the screen |
+| 3 | Neon Mile | Ram (charges) | The Chemist: keeps away, throws three bottles in a row |
+| 4 | The Last Block | three attackers at once, Big Red again half way | The Foreman: charges and throws |
+
+Enemy types are in `src/data/characters.ts` (`variants`). All use the punk sprite with a tint.
+Bosses think twice as fast below half health and pulse red. When a boss goes down, the rest of
+the wave goes with it.
+
+**Player moves added.** Run (double tap a direction or hold Shift), a sliding kick out of a run,
+and a special spin (C or L, or attack and jump together) that hits both sides, cannot be
+interrupted and costs 8 health when it lands. Bottles and rolling barrels can be knocked away
+with any attack; barrels can also be jumped.
+
+**Rules added.**
+- Combo count: hits in a row without being hit. Every 5 hits raise the multiplier on hit points, up to x5.
+- Stage clock. At zero the player loses a life and gets 60 seconds.
+- Stage clear pays 50 points per second left and 30 per health point. The last stage adds 5000 per life.
+- A new life every 100,000 points. Barrels can also drop a feast (full health) or a life.
+- Two continues. Continuing restarts the stage with the score at zero; declining keeps the score.
+- Health and lives carry from stage to stage.
+
+**Score table.** Three initials, top 10 shown after a game and from the title screen after 12 seconds
+without input. The client (`src/scores.ts`) asks `api/scores`; if no server answers it keeps a table
+in the browser's local storage and labels it "THIS BROWSER ONLY".
+
+**Deployment.** The container no longer runs nginx. `server/server.mjs` (Node, no dependencies)
+serves `dist/` and the score API on port 80, and stores the table in `/data/scores.json`.
+Mount a persistent volume at `/data` in Coolify, or the table is empty after each deploy.
+Scores are not authenticated: anyone can post any score.
+
+Run with `pnpm dev`. Controls: arrows or WASD to move, Z or J to attack, X, K or Space to jump, C or L for the special,
+P to pause, H to show hitboxes. Gamepad: stick or d-pad, X attack, A jump, B or Y special,
+a shoulder button to run, Start to pause.
+
+Still open: two players, grab and throw, hand-drawn knockdown frames, more enemy art.
 
 ## Tools
 
@@ -121,12 +167,13 @@ attack in the air for a jump kick, down plus attack for a dive kick, H to show h
 |---|---|
 | `execution/fetch_assets.py [ids]` | Download packs listed in `assets/sources.toml` from OpenGameArt, unpack them, regenerate the manifest and credits. Add a pack by adding an entry to the TOML file. |
 | `execution/contact_sheet.py -o out.png "glob" ...` | Put matching PNG files on one labelled image for visual comparison. |
-| `execution/build_assets.py [sprites stage fx audio]` | Build `assets/game/` from `assets/raw/`: re-anchored sprite strips, the composed stage 1 image, the generated font and spark, converted audio. The stage layout is the `STAGE1_*` constants in the script. Also `pnpm assets`. |
-| `node execution/smoke.mjs [--seconds 30] [--out dir]` | With `pnpm dev` running, a bot plays the game in headless Chromium, saves screenshots and fails on page errors. |
-| `pnpm test` | Vitest on the combat simulation in `src/sim/`. |
+| `execution/build_assets.py [sprites stage fx audio]` | Build `assets/game/` from `assets/raw/`: re-anchored sprite strips, the composed stage 1 image, the generated font and spark, converted audio. The stage layouts are the `STAGES` table in the script. Also `pnpm assets`. |
+| `node execution/smoke.mjs [--seconds 8] [--out dir]` | With `pnpm dev` running, goes through the whole game in headless Chromium: every stage, the ending, name entry, score table, game over and continue. Saves screenshots and fails on page errors. Adds one entry named BOT to the dev score table (`data/scores.json`). |
+| `pnpm test` | Vitest on the simulation in `src/sim/`. Includes a bot (`src/sim/bot.ts`) that must finish every stage. |
+| `pnpm start` | Serve the built game and the score API as in production. Set `PORT` and `SCORES_FILE` for local use. |
 
 ## Open decisions
 
 - Buy the Streets of Fight addon (5 USD) or stay with free art plus own edits.
-- One player first, or two-player co-op from the start (it affects camera and enemy targeting).
-- Setting, character names and story.
+- Two-player co-op (it affects camera and enemy targeting).
+- The title "Night Shift", the boss names and the story text are working choices.

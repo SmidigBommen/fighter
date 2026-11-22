@@ -5,11 +5,12 @@ import { Fighter, poseOf } from '../sim/fighter';
 export class FighterView {
   private sprite: Phaser.GameObjects.Image;
   private shadow: Phaser.GameObjects.Image;
+  private tint: number;
 
   constructor(scene: Phaser.Scene, f: Fighter) {
     this.shadow = scene.add.image(0, 0, 'shadow').setScale(f.scale);
     this.sprite = scene.add.image(0, 0, `${f.def.id}_idle`, 0).setOrigin(0.5, 1).setScale(f.scale);
-    if (f.variant && f.variant.tint !== 0xffffff) this.sprite.setTint(f.variant.tint);
+    this.tint = f.variant?.tint ?? 0xffffff;
   }
 
   sync(f: Fighter, tick: number): void {
@@ -23,6 +24,13 @@ export class FighterView {
       .setDepth(y);
     const blink = (f.invuln > 0 && f.state !== 'getup') || (f.state === 'dead' && f.timer < 45);
     this.sprite.setVisible(!blink || tick % 6 < 3);
+
+    // White flashes warn of a charge or a throw. An enraged boss pulses red.
+    const windup = f.team === 'enemy' && f.state === 'attack' && (f.move?.lunge || f.move?.throws) && f.moveTick < 22;
+    const enraged = f.variant?.boss && f.alive && f.hp < f.maxHp / 2;
+    if (windup && tick % 6 < 3) this.sprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+    else this.sprite.setTint(enraged && tick % 16 < 8 ? 0xff5050 : this.tint).setTintMode(Phaser.TintModes.MULTIPLY);
+
     const shrink = Math.max(0.5, 1 - f.z / 110);
     this.shadow
       .setPosition(x, y)

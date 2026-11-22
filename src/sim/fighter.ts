@@ -1,11 +1,12 @@
-import { GRAVITY, JUMP_VZ } from './types';
+import { GRAVITY, JUMP_VZ, RUN_SPEED } from './types';
 import type { CharDef, Intent, MoveDef, MoveFrame, Pose, SimEvent, VariantDef } from './types';
 
 export type State = 'idle' | 'walk' | 'jump' | 'attack' | 'hurt' | 'fall' | 'down' | 'getup' | 'dead';
 export type Team = 'player' | 'enemy';
 
 export interface AiState {
-  mode: 'circle' | 'engage' | 'recover';
+  /** lineup: walking to a spot level with the player to throw or charge from. */
+  mode: 'circle' | 'engage' | 'recover' | 'lineup';
   timer: number;
   /** Depth offset from the player while circling. */
   offY: number;
@@ -13,6 +14,9 @@ export interface AiState {
   wind: number;
   /** Ticks left before giving up an engage. */
   patience: number;
+  /** lineup: the move to use, and the side of the player to stand on. */
+  move?: string;
+  side?: 1 | -1;
 }
 
 const ATTACK_BUFFER = 10;
@@ -45,6 +49,12 @@ export class Fighter {
   comboTimer = 0;
   attackBuffer = 0;
   bounced = false;
+  /** Enemies: has been on screen. */
+  entered = false;
+  /** Moving at run speed this tick. */
+  running = false;
+  /** The current move is a step of the ground chain. */
+  inChain = false;
   intent: Intent = NEUTRAL;
   ai?: AiState;
   readonly scale: number;
@@ -65,6 +75,7 @@ export class Fighter {
 
   /** Can be hit right now. Knocked-down fighters stay safe until they stand. */
   get hittable(): boolean {
+    if (this.state === 'attack' && this.move?.invuln) return false;
     return this.invuln === 0 && this.state !== 'fall' && this.state !== 'down' && this.state !== 'getup' && this.state !== 'dead';
   }
 
@@ -103,13 +114,22 @@ function startMove(f: Fighter, move: MoveDef): void {
   f.moveHits.clear();
   f.moveConnected = false;
   f.attackBuffer = 0;
+  f.inChain = false;
+}
+
+/** Starts a ground move outside the chain: run attack, special, or an AI choice. */
+function startGroundMove(f: Fighter, id: string): void {
+  if (f.intent.mx !== 0) f.facing = f.intent.mx > 0 ? 1 : -1;
+  startMove(f, f.def.moves[id]);
+  f.running = false;
+  f.setState('attack');
 }
 
 function startGroundAttack(f: Fighter): void {
-  if (f.intent.mx !== 0) f.facing = f.intent.mx > 0 ? 1 : -1;
-  const id = f.def.chain[f.comboStep % f.def.chain.length];
-  startMove(f, f.def.moves[id]);
-  f.setState('attack');
+  if (f.intent.move) return startGroundMove(f, f.intent.move);
+  if (f.running && f.def.runAttack) return startGroundMove(f, f.def.runAttack);
+  startGroundMove(f, f.def.chain[f.comboStep % f.def.chain.length]);
+  f.inChain = true;
 }
 
 function endMove(f: Fighter): void {
@@ -122,7 +142,8 @@ function endMove(f: Fighter): void {
 export function onMoveConnected(f: Fighter): void {
   if (!f.move || f.moveConnected) return;
   f.moveConnected = true;
-  if (f.move.air) return;
+  if (f.move.cost) f.hp = Math.max(1, f.hp - f.move.cost);
+  if (!f.inChain) return;
   f.comboStep = f.comboStep + 1 >= f.def.chain.length ? 0 : f.comboStep + 1;
 }
 
@@ -131,6 +152,7 @@ export function takeHit(f: Fighter, dir: 1 | -1, knockback: number, hitstun: num
   f.move = undefined;
   f.comboStep = 0;
   f.attackBuffer = 0;
+  f.running = false;
   f.facing = dir === 1 ? -1 : 1;
   if (knockdown || f.hp <= 0 || f.z > 0) {
     f.vx = dir * Math.max(knockback, 2.2);
@@ -144,12 +166,14 @@ export function takeHit(f: Fighter, dir: 1 | -1, knockback: number, hitstun: num
 }
 
 export function updateFighter(f: Fighter, events: SimEvent[]): void {
+  const input = f.intent;
   if (f.hitstop > 0) {
     f.hitstop--;
+    // A press during the freeze still counts, so mashing through a combo drops nothing.
+    if (input.attack) f.attackBuffer = ATTACK_BUFFER;
     return;
   }
   if (f.invuln > 0) f.invuln--;
-  const input = f.intent;
   if (input.attack) f.attackBuffer = ATTACK_BUFFER;
   else if (f.attackBuffer > 0) f.attackBuffer--;
   if (f.state !== 'attack' && f.comboTimer > 0 && --f.comboTimer === 0) f.comboStep = 0;
@@ -158,20 +182,28 @@ export function updateFighter(f: Fighter, events: SimEvent[]): void {
   switch (f.state) {
     case 'idle':
     case 'walk': {
+      if (input.special && f.def.special) {
+        startGroundMove(f, f.def.special);
+        events.push({ type: 'special' });
+        break;
+      }
       if (f.attackBuffer > 0) {
         startGroundAttack(f);
         break;
       }
+      const run = input.run && input.mx !== 0 ? RUN_SPEED : 1;
       if (input.jump && f.def.canJump) {
         if (input.mx !== 0) f.facing = input.mx > 0 ? 1 : -1;
-        f.vx = input.mx * f.speedX * 1.25;
+        f.vx = input.mx * f.speedX * 1.25 * (run > 1 ? 1.4 : 1);
         f.vz = JUMP_VZ;
+        f.running = false;
         f.setState('jump');
         break;
       }
       const len = Math.hypot(input.mx, input.my);
       const k = len > 1 ? 1 / len : 1;
-      f.x += input.mx * k * f.speedX;
+      f.running = run > 1;
+      f.x += input.mx * k * f.speedX * run;
       f.y += input.my * k * f.speedY;
       if (input.face) f.facing = input.face;
       else if (input.mx !== 0) f.facing = input.mx > 0 ? 1 : -1;
@@ -208,8 +240,16 @@ export function updateFighter(f: Fighter, events: SimEvent[]): void {
     case 'attack': {
       const move = f.move!;
       f.moveTick++;
+      if (move.lunge && f.moveTick >= move.lunge.from && f.moveTick < move.lunge.to) f.x += f.facing * move.lunge.speed;
+      // A spin shows the kick to both sides in turn.
+      if (move.around && f.moveTick % 5 === 0) f.facing = f.facing === 1 ? -1 : 1;
+      if (move.throws?.ticks.includes(f.moveTick)) events.push({ type: 'throw', id: f.id, kind: move.throws.kind });
       const canChain = f.moveConnected && move.cancelFrom !== undefined && f.moveTick >= move.cancelFrom;
-      if (f.attackBuffer > 0 && canChain) {
+      if (input.special && f.def.special && move.id !== f.def.special) {
+        // The special also works as a way out of a chain that is going wrong.
+        startGroundMove(f, f.def.special);
+        events.push({ type: 'special' });
+      } else if (f.attackBuffer > 0 && canChain) {
         startGroundAttack(f);
       } else if (f.moveTick >= moveLength(move)) {
         endMove(f);
@@ -275,7 +315,7 @@ export function poseOf(f: Fighter): Pose {
     case 'idle':
       return { anim: 'idle', frame: Math.floor(f.stateTick / 9) % anims.idle };
     case 'walk':
-      return { anim: 'walk', frame: Math.floor(f.stateTick / (anims.walk > 6 ? 5 : 9)) % anims.walk };
+      return { anim: 'walk', frame: Math.floor(f.stateTick / (f.running ? 3 : anims.walk > 6 ? 5 : 9)) % anims.walk };
     case 'jump': {
       if (f.move) return { anim: f.move.anim, frame: frameAt(f.move, f.moveTick)!.frame };
       if (f.stateTick < 4) return { anim: 'jump', frame: 0 };

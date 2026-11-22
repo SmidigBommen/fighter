@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { stage1 } from '../data/stage1';
-import { DEPTH_TOLERANCE, MAX_ATTACK_TOKENS, VIEW_W } from './types';
+import { stages } from '../data/stages';
+import { botIntent } from './bot';
+import { DEPTH_TOLERANCE, EXTRA_LIFE_EVERY, MAX_ATTACK_TOKENS, START_LIVES, VIEW_W } from './types';
 import type { Intent, StageDef } from './types';
-import { World } from './world';
+import { World, comboMultiplier } from './world';
 
 const arena: StageDef = { ...stage1, waves: [], breakables: [], playerStart: { x: 200, y: 160 } };
 const idle: Intent = { mx: 0, my: 0, attack: false, jump: false };
@@ -228,5 +230,181 @@ describe('barrels and pickups', () => {
     run(w, 120, { ...idle, mx: 1 });
     expect(p.x).toBeGreaterThan(260);
     expect(Math.abs(p.y - 160)).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe('run, special and combo', () => {
+  it('running covers more ground than walking', () => {
+    const a = new World(arena, 1);
+    const b = new World(arena, 1);
+    run(a, 30, { ...idle, mx: 1 });
+    run(b, 30, { ...idle, mx: 1, run: true });
+    expect(b.player.x - 200).toBeGreaterThan((a.player.x - 200) * 1.5);
+  });
+
+  it('attack out of a run is a sliding kick that knocks down', () => {
+    const { w, p, dummy } = duel(70);
+    run(w, 4, { ...idle, mx: 1, run: true });
+    w.step({ ...idle, mx: 1, run: true, attack: true });
+    expect(p.move!.id).toBe('run_kick');
+    run(w, 30);
+    expect(dummy.hp).toBe(dummy.maxHp - 13);
+    expect(['fall', 'down', 'getup']).toContain(dummy.state);
+  });
+
+  it('the special hits both sides, costs health once and cannot be interrupted', () => {
+    const { w, p, dummy } = duel(26);
+    const behind = w.spawnEnemy('bruiser', 174, 160);
+    behind.ai = { mode: 'recover', timer: 1e9, offY: 0, wind: 0, patience: 0 };
+    w.step({ ...idle, special: true });
+    expect(p.hittable).toBe(false);
+    run(w, 40);
+    expect(dummy.hp).toBeLessThan(dummy.maxHp);
+    expect(behind.hp).toBeLessThan(behind.maxHp);
+    expect(dummy.x).toBeGreaterThan(226);
+    expect(behind.x).toBeLessThan(174);
+    expect(p.hp).toBe(p.maxHp - 8);
+  });
+
+  it('hits in a row raise the combo and the multiplier; being hit resets it', () => {
+    const { w, p, dummy } = duel();
+    dummy.hp = dummy.maxHp = 500;
+    // The dummy wakes up once hit. Invulnerability keeps it from hitting back during the count.
+    p.invuln = 1e6;
+    for (let i = 0; i < 6; i++) {
+      const hp = dummy.hp;
+      while (dummy.state === 'fall' || dummy.state === 'down' || dummy.state === 'getup') w.step(idle);
+      dummy.x = p.x + 26;
+      pressUntil(w, () => dummy.hp < hp);
+    }
+    expect(w.combo).toBe(6);
+    expect(comboMultiplier(w.combo)).toBe(2);
+    p.invuln = 0;
+    dummy.x = p.x + 300;
+    w.spawnProjectile('bottle', p.x - 40, p.y, 30, 3, 0, 'enemy', 8, false);
+    run(w, 30);
+    expect(p.hp).toBe(p.maxHp - 8);
+    expect(w.combo).toBe(0);
+  });
+});
+
+describe('projectiles, clock and lives', () => {
+  it('a thrower lines up and its bottle hurts the player', () => {
+    const w = new World(arena, 4);
+    w.spawnEnemy('thrower', 380, 200);
+    let thrown = false;
+    for (let i = 0; i < 1500 && w.player.hp === 100; i++) {
+      w.step(idle);
+      thrown ||= w.projectiles.length > 0;
+    }
+    expect(thrown).toBe(true);
+    expect(w.player.hp).toBeLessThan(100);
+  });
+
+  it('a bottle can be knocked out of the air', () => {
+    const w = new World(arena, 1);
+    w.spawnProjectile('bottle', 260, 160, 34, -3, 0, 'enemy', 8, false);
+    w.step(attack);
+    run(w, 20);
+    expect(w.player.hp).toBe(100);
+    expect(w.score).toBe(200);
+  });
+
+  it('a rolling barrel knocks down whoever stands in its lane and can be jumped', () => {
+    const w = new World(arena, 1);
+    const enemy = w.spawnEnemy('punk', 120, 160);
+    enemy.ai = { mode: 'recover', timer: 1e9, offY: 0, wind: 0, patience: 0 };
+    w.spawnProjectile('barrel', 300, 160, 0, -2.3, 0, 'none', 12, true);
+    for (let i = 0; i < 200; i++) {
+      const b = w.projectiles[0];
+      w.step({ ...idle, jump: !!b && b.x - w.player.x < 40 && b.x > w.player.x });
+    }
+    expect(w.player.hp).toBe(100);
+    expect(enemy.hp).toBe(enemy.maxHp - 12);
+  });
+
+  it('a charging enemy rushes across the screen', () => {
+    const w = new World(arena, 2);
+    const e = w.spawnEnemy('rusher', 380, 160);
+    let charged = false;
+    for (let i = 0; i < 2000 && !charged; i++) {
+      w.step(idle);
+      w.player.hp = 100;
+      charged = e.move?.id === 'punk_charge';
+    }
+    expect(charged).toBe(true);
+    const x0 = e.x;
+    while (e.move?.id === 'punk_charge') w.step({ ...idle, my: -1 });
+    expect(Math.abs(e.x - x0)).toBeGreaterThan(100);
+  });
+
+  it('running out of time costs a life and refills the clock', () => {
+    const w = new World({ ...arena, time: 2 }, 1);
+    run(w, 121);
+    expect(w.player.hp).toBe(0);
+    run(w, 300);
+    expect(w.lives).toBe(START_LIVES - 1);
+    expect(w.player.hp).toBe(100);
+    expect(w.seconds).toBeGreaterThan(50);
+  });
+
+  it('passing the score threshold awards a life', () => {
+    const w = new World(arena, 1, { score: EXTRA_LIFE_EVERY - 100, lives: 1, hp: 60 });
+    expect(w.player.hp).toBe(60);
+    w.addScore(200);
+    expect(w.lives).toBe(2);
+    w.addScore(200);
+    expect(w.lives).toBe(2);
+  });
+});
+
+describe('every stage can be finished', () => {
+  for (const stage of stages) {
+    it(`${stage.id}: the bot reaches the end without getting stuck`, () => {
+      const w = new World(stage, 11);
+      let deaths = 0;
+      let lives = w.lives;
+      let i = 0;
+      for (; i < 60 * 60 * 12 && w.status === 'playing'; i++) {
+        w.step(botIntent(w));
+        if (w.lives < lives) deaths++;
+        // The bot is not good enough to be graded: it gets unlimited lives and time.
+        lives = w.lives = 5;
+        w.timeLeft = Math.max(w.timeLeft, 600);
+      }
+      console.log(`${stage.id}: ${Math.round(i / 60)} s, ${deaths} lives lost, score ${w.score}, best combo ${w.maxCombo}`);
+      expect(w.status).toBe('cleared');
+    });
+  }
+});
+
+describe('bosses', () => {
+  it('when the boss goes down the rest of the wave goes with it', () => {
+    const w = new World(arena, 1);
+    const boss = w.spawnEnemy('boss', 300, 160);
+    const other = w.spawnEnemy('punk', 100, 200);
+    boss.hp = 0;
+    boss.vz = 3;
+    boss.bounced = true;
+    boss.setState('fall');
+    run(w, 200);
+    expect(other.hp).toBe(0);
+    expect(w.enemies).toHaveLength(0);
+    expect(w.score).toBe(5000 + 500);
+  });
+});
+
+describe('screen edges', () => {
+  it('enemies come on screen even when the player stands against the edge they enter from', () => {
+    const w = new World({ ...arena, playerStart: { x: VIEW_W - 10, y: 160 } }, 6);
+    const enemies = [w.spawnEnemy('punk', VIEW_W + 30, 150), w.spawnEnemy('bruiser', VIEW_W + 30, 190)];
+    for (let i = 0; i < 600; i++) {
+      w.step({ ...idle, mx: 1 });
+      w.player.hp = 100;
+    }
+    for (const e of enemies) {
+      expect(e.entered).toBe(true);
+      expect(e.x).toBeLessThanOrEqual(w.camX + VIEW_W - 10);
+    }
   });
 });

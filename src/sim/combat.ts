@@ -57,7 +57,8 @@ export function resolveHits(fighters: Fighter[], events: SimEvent[]): HitResult[
       a.hitstop = stop;
       t.hitstop = stop;
       onMoveConnected(a);
-      takeHit(t, a.facing, move.knockback, move.hitstun, knockdown);
+      const dir = move.around ? (t.x < a.x ? -1 : 1) : a.facing;
+      takeHit(t, dir, move.knockback, move.hitstun, knockdown);
       events.push({
         type: 'hit',
         x: Math.max(hit.x0, hurt.x0) / 2 + Math.min(hit.x1, hurt.x1) / 2,

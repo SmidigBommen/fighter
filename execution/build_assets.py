@@ -5,7 +5,7 @@
 # ///
 """Build assets/game/ (the files the game loads) from assets/raw/.
 
-Steps: sprites (re-anchor character strips), stage (compose stage 1 from the
+Steps: sprites (re-anchor character strips), stage (compose the stages from the
 tileset), fx (generated spark, font), audio (convert with ffmpeg).
 """
 import argparse
@@ -105,71 +105,147 @@ CHUNKS = {
     "graffiti": (432, 224, 96, 96),
 }
 
-STAGE1_WIDTH = 1920
-STAGE1_WALL = (
-    "shop brick_end_l pipe gap_l fence fence fence fence fence gap_r brick garage brick_end_r "
-    "stone_pillar pizza brick_end_l window door window graffiti pipe shutter brick_end_r "
-    "gap_l fence fence fence fence gap_r brick window garage graffiti door brick_end_r "
-    "stone_pillar shop brick_end_l pipe window shutter brick window brick"
-).split()
-# (prop file, x, y of bottom-left) baked into the background at the foot of the wall
-# Barrels are game objects now (src/data/stage1.ts), so none are baked in.
-STAGE1_BAKED: list[tuple[str, int, int, tuple[int, int, int, int]]] = []
-STAGE1_SIGNS = [("Ethereum/ethereum-1.png", 6, 2), ("Sushi/sushi-1.png", 700, 10), ("banner-hor/banner-hor1.png", 1500, 4)]
-STAGE1_LAMPS = [150, 520, 890, 1260, 1630]
-STAGE1_BUSHES = [330, 1010, 1750]
-STAGE1_CARS = [400, 1330]
+def _fences(n: int) -> str:
+    return "gap_l " + "fence " * n + "gap_r"
 
 
-def build_stage() -> list[str]:
+# One entry per stage. wall: tileset chunks left to right (repeated if too short).
+# signs: (prop file, x, y). lamps, bushes, cars: x positions in the foreground layer.
+# grade: (hue shift in degrees, saturation factor, brightness factor) applied to both layers.
+STAGES: dict[str, dict] = {
+    "stage1": {
+        "width": 1920,
+        "wall": (
+            "shop brick_end_l pipe gap_l fence fence fence fence fence gap_r brick garage brick_end_r "
+            "stone_pillar pizza brick_end_l window door window graffiti pipe shutter brick_end_r "
+            "gap_l fence fence fence fence gap_r brick window garage graffiti door brick_end_r "
+            "stone_pillar shop brick_end_l pipe window shutter brick window brick"
+        ),
+        "signs": [("Ethereum/ethereum-1.png", 6, 2), ("Sushi/sushi-1.png", 700, 10), ("banner-hor/banner-hor1.png", 1500, 4)],
+        "lamps": [150, 520, 890, 1260, 1630],
+        "bushes": [330, 1010, 1750],
+        "cars": [400, 1330],
+        "grade": None,
+    },
+    # Back alleys at dusk: fences, shutters and graffiti, few shop fronts.
+    "stage2": {
+        "width": 2304,
+        "wall": (
+            f"brick_end_l graffiti pipe shutter window brick_end_r {_fences(6)} brick graffiti garage pipe brick_end_r "
+            f"{_fences(3)} brick shutter graffiti door window shutter brick_end_r stone_pillar pizza brick_end_l "
+            f"garage graffiti pipe brick_end_r {_fences(5)} brick shutter garage graffiti window pipe brick_end_r "
+            f"{_fences(4)} brick graffiti shutter door graffiti garage brick"
+        ),
+        "signs": [("banner-hor/banner-hor2.png", 250, 4), ("Sushi/sushi-2.png", 1240, 10)],
+        "lamps": [260, 760, 1300, 1840],
+        "bushes": [90, 600, 1120, 1560, 2100],
+        "cars": [900, 1960],
+        "grade": (-28, 1.05, 0.95),
+    },
+    # The neon mile: shop fronts and signs under green light.
+    "stage3": {
+        "width": 2304,
+        "wall": (
+            "stone_pillar shop stone_pillar pizza brick_end_l window door window brick_end_r "
+            f"stone_pillar pizza stone_pillar shop brick_end_l pipe garage brick_end_r {_fences(4)} "
+            "brick window door brick_end_r stone_pillar shop stone_pillar pizza stone_pillar shop "
+            "brick_end_l shutter window pipe brick_end_r stone_pillar pizza brick_end_l door window brick"
+        ),
+        "signs": [
+            ("Ethereum/ethereum-2.png", 40, 2), ("Sushi/sushi-2.png", 500, 10), ("banner-hor/banner-hor2.png", 700, 4),
+            ("Ethereum/ethereum-1.png", 1260, 2), ("Sushi/sushi-1.png", 1750, 10), ("banner-hor/banner-hor1.png", 2000, 4),
+        ],
+        "lamps": [120, 420, 720, 1020, 1320, 1620, 1920, 2220],
+        "bushes": [560, 1450],
+        "cars": [240, 1100, 2040],
+        "grade": (62, 1.0, 1.0),
+    },
+    # The last block before dawn: sodium-yellow street, cold blue brick, closed shutters.
+    "stage4": {
+        "width": 2432,
+        "wall": (
+            f"brick_end_l shutter shutter pipe brick_end_r {_fences(3)} brick graffiti shutter door shutter brick_end_r "
+            f"stone_pillar shop brick_end_l garage pipe garage brick_end_r {_fences(7)} brick shutter graffiti shutter "
+            f"pipe brick_end_r stone_pillar shop stone_pillar brick_end_l door shutter garage shutter door brick_end_r "
+            f"{_fences(2)} brick shutter shutter shutter brick"
+        ),
+        "signs": [("Ethereum/ethereum-2.png", 760, 2)],
+        "lamps": [200, 700, 1200, 1700, 2200],
+        "bushes": [450, 1500],
+        "cars": [1000, 1900],
+        "grade": (-150, 1.15, 0.82),
+    },
+}
+
+
+def _grade(img: Image.Image, grade: tuple[float, float, float] | None) -> Image.Image:
+    """Shift hue and scale saturation and brightness. Alpha is kept."""
+    if not grade:
+        return img
+    shift, sat, val = grade
+    alpha = img.getchannel("A")
+    h, s, v = img.convert("RGB").convert("HSV").split()
+    h = h.point(lambda p: (p + round(shift * 256 / 360)) % 256)
+    s = s.point(lambda p: min(255, round(p * sat)))
+    v = v.point(lambda p: min(255, round(p * val)))
+    out = Image.merge("HSV", (h, s, v)).convert("RGB").convert("RGBA")
+    out.putalpha(alpha)
+    return out
+
+
+def build_one_stage(name: str, spec: dict) -> list[str]:
+    width = spec["width"]
     tiles = Image.open(SOF / "Stage Layers" / "tileset.png").convert("RGBA")
     back = Image.open(SOF / "Stage Layers" / "back.png").convert("RGBA")
     fore_src = Image.open(SOF / "Stage Layers" / "fore.png").convert("RGBA")
     props = SOF / "Stage Layers" / "props"
     chunk = {k: tiles.crop((x, y, x + w, y + h)) for k, (x, y, w, h) in CHUNKS.items()}
 
-    bg = Image.new("RGBA", (STAGE1_WIDTH, 240), (16, 16, 24, 255))
+    bg = Image.new("RGBA", (width, 240), (16, 16, 24, 255))
+    wall = spec["wall"].split()
     x = 0
-    for name in STAGE1_WALL:
-        if x >= STAGE1_WIDTH:
-            break
-        c = chunk[name]
-        if name == "fence":
+    i = 0
+    while x < width:
+        piece = wall[i % len(wall)]
+        i += 1
+        c = chunk[piece]
+        if piece == "fence":
             bg.alpha_composite(back.crop((x % 96, 0, min(96, x % 96 + 32), 80)), (x, 8))
             if x % 96 > 64:
                 bg.alpha_composite(back.crop((0, 0, x % 96 - 64, 80)), (x + 96 - x % 96, 8))
         bg.alpha_composite(c, (x, 96 - c.height))
         x += c.width
-    if x < STAGE1_WIDTH:
-        sys.exit(f"stage wall is {x} px wide, needs {STAGE1_WIDTH}")
     x = 0
     i = 0
-    while x < STAGE1_WIDTH:
+    while x < width:
         c = chunk["ground_drain"] if i % 3 == 2 else chunk["ground"]
         bg.alpha_composite(c, (x, 96))
         x += c.width
         i += 1
-    for file, px, bottom, box in STAGE1_BAKED:
-        p = Image.open(props / file).convert("RGBA").crop(box)
-        bg.alpha_composite(p, (px, bottom - p.height))
-    for file, px, py in STAGE1_SIGNS:
+    for file, px, py in spec["signs"]:
         bg.alpha_composite(Image.open(props / file).convert("RGBA"), (px, py))
-    bg.convert("RGB").save(OUT / "stage1.png")
+    _grade(bg, spec["grade"]).convert("RGB").save(OUT / f"{name}.png")
 
-    fore = Image.new("RGBA", (STAGE1_WIDTH, 240))
+    fore = Image.new("RGBA", (width, 240))
     lamp = fore_src.crop((16, 5, 58, 144))
     bush = fore_src.crop((94, 76, 155, 144))
     car = Image.open(props / "car.png").convert("RGBA")
-    for px in STAGE1_CARS:
+    for px in spec["cars"]:
         fore.alpha_composite(car, (px, 240 - car.height + 6))
-    for px in STAGE1_BUSHES:
+    for px in spec["bushes"]:
         fore.alpha_composite(bush, (px, 240 - bush.height))
-    for px in STAGE1_LAMPS:
+    for px in spec["lamps"]:
         fore.alpha_composite(lamp, (px, 240 - lamp.height))
-    fore.save(OUT / "stage1_fore.png")
+    _grade(fore, spec["grade"]).save(OUT / f"{name}_fore.png")
+    return [f"{name}.png ({width}x240)", f"{name}_fore.png"]
 
-    shutil.copy(props / "hydrant.png", OUT / "hydrant.png")
-    return [f"stage1.png ({STAGE1_WIDTH}x240)", "stage1_fore.png", "hydrant.png"]
+
+def build_stage() -> list[str]:
+    made = []
+    for name, spec in STAGES.items():
+        made += build_one_stage(name, spec)
+    shutil.copy(SOF / "Stage Layers" / "props" / "hydrant.png", OUT / "hydrant.png")
+    return made + ["hydrant.png"]
 
 
 FONT_CHARS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:!?-+'/<>x"
@@ -221,7 +297,20 @@ ICONS = {
         "kyyyyyyyykyyyyOk", "kyyyyykyykyyyOOk", ".kyyyyykkyyyyOk.", ".kyyyyyyyyyyOOk.",
         "..kyyyyyyyyOOk..", "...kkyyyyOOkk...", ".....kkkkkk.....", "................",
     ],
+    "feast": [
+        "................", "................", ".....kkkkk......", "....kOOOOOk.....",
+        "...kOyOOOObk....", "..kOyOOOOObbk...", "..kOOOOOOObbk...", "..kOOOOOObbbk...",
+        "..kOOOOObbbk....", "...kOObbbbk.....", "....kkbbkk......", "......kwwk..k...",
+        ".......kwwkkwk..", "........kwwwwk..", ".........kwkwk..", "..........k.k...",
+    ],
+    "life": [
+        "................", "................", "..kkkk....kkkk..", ".krrrrk..krrrrk.",
+        "krhhrrrkkrrrrrRk", "krhrrrrrrrrrrrRk", "krhrrrrrrrrrrrRk", "krrrrrrrrrrrrRRk",
+        ".krrrrrrrrrrrRk.", "..krrrrrrrrrRk..", "...krrrrrrrRk...", "....krrrrrRk....",
+        ".....krrrRk.....", "......krRk......", ".......kk.......", "................",
+    ],
 }
+assert all(len(rows) == 16 and all(len(r) == 16 for r in rows) for rows in ICONS.values())
 
 
 def build_fx() -> list[str]:
@@ -260,7 +349,20 @@ def build_fx() -> list[str]:
                 if c != ".":
                     icons.putpixel((i * 16 + x, y), ICON_COLOURS[c] + (255,))
     icons.save(OUT / "pickups.png")
-    return ["font.png", "font.txt", "spark.png (4 frames)", f"pickups.png ({len(ICONS)} frames)"]
+
+    # Thrown bottle: 4 frames of 12x12, one quarter turn each.
+    one = Image.new("RGBA", (12, 12))
+    bd = ImageDraw.Draw(one)
+    bd.rectangle((3, 4, 8, 11), fill=(20, 40, 30, 255))
+    bd.rectangle((4, 0, 7, 4), fill=(20, 40, 30, 255))
+    bd.rectangle((4, 5, 7, 10), fill=(70, 190, 110, 255))
+    bd.rectangle((5, 1, 6, 4), fill=(70, 190, 110, 255))
+    bd.line((5, 6, 5, 9), fill=(190, 250, 210, 255))
+    bottle = Image.new("RGBA", (48, 12))
+    for i in range(4):
+        bottle.paste(one.rotate(-90 * i), (i * 12, 0))
+    bottle.save(OUT / "bottle.png")
+    return ["font.png", "font.txt", "spark.png (4 frames)", f"pickups.png ({len(ICONS)} frames)", "bottle.png (4 frames)"]
 
 
 AUDIO = {
@@ -269,6 +371,10 @@ AUDIO = {
     "hit_heavy.ogg": "punch-sfx/qubodupPunch/qubodupPunch/qubodupPunch05.flac",
     "thud.ogg": "hits-punches/independent_nu_ljudbank-hits_and_punches/hits/hit07.mp3.flac",
     "music_stage1.ogg": "chiptunes-action/5 Action Chiptunes By Juhani Junkala/Juhani Junkala [Retro Game Music Pack] Level 1.wav",
+    "music_stage2.ogg": "chiptunes-action/5 Action Chiptunes By Juhani Junkala/Juhani Junkala [Retro Game Music Pack] Level 2.wav",
+    "music_stage3.ogg": "chiptunes-action/5 Action Chiptunes By Juhani Junkala/Juhani Junkala [Retro Game Music Pack] Level 3.wav",
+    "music_stage4.ogg": "music-loops/12_indie_game_music_loops_0/006 [Heavy Metal Chiptunes] bgm_stage_F (faster).ogg",
+    "music_boss.ogg": "music-loops/12_indie_game_music_loops_0/316 [Chiptune Heroes] bgm_dangerous_encounter_A (faster).ogg",
     "music_title.ogg": "chiptunes-action/5 Action Chiptunes By Juhani Junkala/Juhani Junkala [Retro Game Music Pack] Title Screen.wav",
     "music_end.ogg": "chiptunes-action/5 Action Chiptunes By Juhani Junkala/Juhani Junkala [Retro Game Music Pack] Ending.wav",
 }
@@ -285,13 +391,21 @@ def build_audio() -> list[str]:
             check=True,
         )
         made.append(f"{name} ({dst.stat().st_size // 1024} kB)")
-    # No pack has a pickup sound: two rising square-ish tones, generated.
-    tones = "aevalsrc='0.25*sgn(sin(2*PI*(if(lt(t,0.07),988,1319))*t))*exp(-6*t)':d=0.22:s=44100"
-    subprocess.run(
-        ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", tones, "-c:a", "libvorbis", "-q:a", "3", str(OUT / "pickup.ogg")],
-        check=True,
-    )
-    made.append("pickup.ogg")
+    # No pack has these, so they are generated: lavfi source, optional filter.
+    square = "0.25*sgn(sin(2*PI*({f})*t))"
+    generated = {
+        "pickup.ogg": ("aevalsrc='" + square.format(f="if(lt(t,0.07),988,1319)") + "*exp(-6*t)':d=0.22:s=44100", None),
+        "extralife.ogg": ("aevalsrc='" + square.format(f="if(lt(t,0.09),659,if(lt(t,0.18),784,if(lt(t,0.27),1047,1319)))") + "*exp(-2*t)':d=0.6:s=44100", None),
+        "blip.ogg": ("aevalsrc='" + square.format(f="880") + "*exp(-20*t)':d=0.08:s=44100", None),
+        "glass.ogg": ("anoisesrc=d=0.3:c=white:a=0.6:r=44100", "highpass=f=3500,afade=t=out:st=0.02:d=0.26"),
+        "swish.ogg": ("anoisesrc=d=0.32:c=pink:a=0.9:r=44100", "bandpass=f=1400:w=900,afade=t=in:d=0.08,afade=t=out:st=0.1:d=0.22"),
+    }
+    for name, (source, filt) in generated.items():
+        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", source]
+        if filt:
+            cmd += ["-af", filt]
+        subprocess.run([*cmd, "-c:a", "libvorbis", "-q:a", "3", str(OUT / name)], check=True)
+        made.append(name)
     return made
 
 

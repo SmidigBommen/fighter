@@ -1,8 +1,11 @@
 import type { StageDef } from '../sim/types';
 
-// Stage art is built by execution/build_assets.py (STAGE1_* constants).
+// Stage art is built by execution/build_assets.py (STAGES).
 export const stage1: StageDef = {
   id: 'stage1',
+  name: 'MAIN STREET',
+  music: 'music_stage1',
+  time: 150,
   width: 1920,
   bandTop: 104,
   bandBottom: 230,

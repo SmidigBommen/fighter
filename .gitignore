@@ -2,3 +2,5 @@ node_modules/
 dist/
 assets/raw/
 assets/preview/
+/data/
+smoke-out/

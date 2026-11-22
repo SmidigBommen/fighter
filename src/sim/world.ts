@@ -1,11 +1,11 @@
 import { chars, variants } from '../data/characters';
 import { think } from './ai';
 import { activeHitbox, boxesOverlap, resolveHits, worldBox } from './combat';
-import { Fighter, NEUTRAL, onMoveConnected, updateFighter } from './fighter';
-import { BARREL, PICKUPS, PICKUP_LIFE, PICKUP_REACH } from './objects';
-import type { Breakable, Pickup, PickupKind } from './objects';
-import { DEPTH_TOLERANCE, GRAVITY, VIEW_W } from './types';
-import type { Intent, SimEvent, Spawn, StageDef } from './types';
+import { Fighter, NEUTRAL, onMoveConnected, takeHit, updateFighter } from './fighter';
+import { BARREL, BOTTLE, PICKUPS, PICKUP_LIFE, PICKUP_REACH, PROJECTILES, ROLLING_BARREL } from './objects';
+import type { Breakable, Pickup, PickupKind, Projectile } from './objects';
+import { DEPTH_TOLERANCE, EXTRA_LIFE_EVERY, GRAVITY, MAX_ATTACK_TOKENS, START_LIVES, TICK_RATE, VIEW_W } from './types';
+import type { Hazard, Intent, ProjectileKind, SimEvent, Spawn, StageDef } from './types';
 
 /** Small seeded generator so a run is reproducible in tests. */
 export class Rng {
@@ -28,6 +28,22 @@ export type Status = 'playing' | 'gameover' | 'cleared';
 
 const CAMERA_SPEED = 2.5;
 const EDGE = 10;
+/** Ticks without a hit before the combo count ends. */
+const COMBO_GAP = 150;
+/** Seconds on the clock after losing a life to the time limit. */
+const TIMEOUT_REFILL = 60;
+
+/** What a run brings into a stage from the one before. */
+export interface Carry {
+  score: number;
+  lives: number;
+  hp: number;
+}
+
+/** Hit points are multiplied by this, growing with the combo count: x1 up to x5. */
+export function comboMultiplier(combo: number): number {
+  return 1 + Math.min(4, Math.floor(combo / 5));
+}
 
 export class World {
   tick = 0;
@@ -36,6 +52,7 @@ export class World {
   readonly player: Fighter;
   breakables: Breakable[] = [];
   pickups: Pickup[] = [];
+  projectiles: Projectile[] = [];
   /** Events of the last step, for the view (sound, sparks, shake). */
   events: SimEvent[] = [];
   /** Ids of the enemies currently allowed to attack. */
@@ -45,9 +62,18 @@ export class World {
   locked = false;
   private waveTick = 0;
   private pending: Spawn[] = [];
+  private hazards: Hazard[] = [];
   score = 0;
-  lives = 2;
+  lives = START_LIVES;
   status: Status = 'playing';
+  /** Player hits in a row without taking one, and the best such run this stage. */
+  combo = 0;
+  maxCombo = 0;
+  private comboTimer = 0;
+  /** Ticks left on the stage clock. */
+  timeLeft: number;
+  readonly maxTokens: number;
+  private nextLifeAt = EXTRA_LIFE_EVERY;
   /** The enemy the player hit last, for the HUD. */
   lastTarget?: Fighter;
   private nextId = 1;
@@ -55,9 +81,18 @@ export class World {
   constructor(
     readonly stage: StageDef,
     seed = 1,
+    carry?: Carry,
   ) {
     this.rng = new Rng(seed);
+    this.timeLeft = stage.time * TICK_RATE;
+    this.maxTokens = stage.tokens ?? MAX_ATTACK_TOKENS;
     this.player = new Fighter(this.nextId++, 'player', chars.player);
+    if (carry) {
+      this.score = carry.score;
+      this.lives = carry.lives;
+      this.player.hp = Math.max(1, Math.min(this.player.maxHp, carry.hp));
+      while (this.nextLifeAt <= this.score) this.nextLifeAt += EXTRA_LIFE_EVERY;
+    }
     this.player.x = stage.playerStart.x;
     this.player.y = stage.playerStart.y;
     this.fighters.push(this.player);
@@ -68,6 +103,26 @@ export class World {
     const b: Breakable = { id: this.nextId++, x, y, drop, broken: false, timer: 0 };
     this.breakables.push(b);
     return b;
+  }
+
+  /** Seconds left on the clock, rounded up. */
+  get seconds(): number {
+    return Math.ceil(this.timeLeft / TICK_RATE);
+  }
+
+  /** Bonus points paid when the stage is cleared. */
+  tally(): { time: number; health: number } {
+    return { time: this.seconds * 50, health: Math.round(this.player.hp) * 30 };
+  }
+
+  /** Adds points and awards the lives that come with them. */
+  addScore(amount: number): void {
+    this.score += amount;
+    while (this.score >= this.nextLifeAt) {
+      this.nextLifeAt += EXTRA_LIFE_EVERY;
+      this.lives++;
+      this.events.push({ type: 'extralife' });
+    }
   }
 
   get enemies(): Fighter[] {
@@ -91,7 +146,14 @@ export class World {
     e.y = y;
     e.facing = x > this.player.x ? -1 : 1;
     this.fighters.push(e);
+    if (v.boss) this.events.push({ type: 'boss', name: v.name });
     return e;
+  }
+
+  spawnProjectile(kind: ProjectileKind, x: number, y: number, z: number, vx: number, vz: number, team: Projectile['team'], damage: number, knockdown: boolean): Projectile {
+    const pr: Projectile = { id: this.nextId++, kind, team, x, y, z, vx, vz, damage, knockdown, age: 0 };
+    this.projectiles.push(pr);
+    return pr;
   }
 
   step(input: Intent): void {
@@ -99,33 +161,127 @@ export class World {
     if (this.status !== 'playing') return;
     this.tick++;
 
+    this.updateClock();
+
     for (const f of this.fighters) {
       f.intent = f.team === 'player' ? input : think(f, this);
       updateFighter(f, this.events);
       this.clamp(f);
     }
+    for (const e of this.events) if (e.type === 'throw') this.release(e.id, e.kind);
 
+    if (this.combo > 0 && --this.comboTimer <= 0) this.combo = 0;
     for (const hit of resolveHits(this.fighters, this.events)) {
       if (hit.attacker.team === 'player') {
-        this.score += hit.damage * 10;
+        this.countHit();
+        this.addScore(hit.damage * 10 * comboMultiplier(this.combo));
         this.lastTarget = hit.target;
+      } else {
+        this.combo = 0;
       }
     }
+
+    for (const e of this.events) if (e.type === 'ko') this.onKo(e.id);
 
     for (let i = this.fighters.length - 1; i >= 0; i--) {
       const f = this.fighters[i];
       if (f.team === 'enemy' && f.state === 'dead' && f.timer <= 0) {
-        this.score += f.variant?.score ?? 0;
+        const points = f.variant?.score ?? 0;
+        this.addScore(points);
+        this.events.push({ type: 'score', amount: points, x: f.x, y: f.y, z: 30 });
         this.tokens.delete(f.id);
         if (this.lastTarget === f) this.lastTarget = undefined;
         this.fighters.splice(i, 1);
       }
     }
 
+    this.updateProjectiles();
     this.updateObjects();
     this.updatePlayerLife();
     this.updateWave();
     this.updateCamera();
+  }
+
+  /** When the last boss on screen goes down, the rest of the wave goes with it. */
+  private onKo(id: number): void {
+    const boss = this.fighters.find((f) => f.id === id);
+    if (!boss?.variant?.boss || this.enemies.some((f) => f !== boss && f.variant?.boss && f.hp > 0)) return;
+    this.pending = [];
+    this.projectiles = this.projectiles.filter((pr) => pr.kind !== 'bottle');
+    for (const f of this.enemies) {
+      if (f.hp <= 0) continue;
+      f.hp = 0;
+      if (f.state !== 'fall') takeHit(f, f.x < boss.x ? -1 : 1, 2.6, 0, true);
+    }
+  }
+
+  private countHit(): void {
+    this.combo++;
+    this.comboTimer = COMBO_GAP;
+    this.maxCombo = Math.max(this.maxCombo, this.combo);
+  }
+
+  /** The clock runs while the player is on their feet. At zero it costs a life. */
+  private updateClock(): void {
+    const p = this.player;
+    if (this.timeLeft <= 0 || !p.alive) return;
+    if (--this.timeLeft > 0) return;
+    this.events.push({ type: 'timeout' });
+    p.hp = 0;
+    p.invuln = 0;
+    if (p.state !== 'fall') takeHit(p, p.facing === 1 ? -1 : 1, 2.2, 0, true);
+  }
+
+  /** A fighter's move reached a throw tick: the bottle leaves the hand. */
+  private release(id: number, kind: ProjectileKind): void {
+    const f = this.fighters.find((x) => x.id === id);
+    if (!f) return;
+    const damage = Math.round(BOTTLE.damage * (f.variant?.damage ?? 1));
+    this.spawnProjectile(kind, f.x + f.facing * 18 * f.scale, f.y, 30 * f.scale, f.facing * BOTTLE.speed, BOTTLE.vz, f.team, damage, f.variant?.heavy ?? false);
+  }
+
+  private updateProjectiles(): void {
+    const p = this.player;
+    const box = activeHitbox(p);
+    const swing = box && worldBox(p, box);
+    this.projectiles = this.projectiles.filter((pr) => {
+      const def = PROJECTILES[pr.kind];
+      pr.age++;
+      pr.x += pr.vx;
+      if (def.gravity > 0) {
+        pr.z += pr.vz;
+        pr.vz -= def.gravity;
+        if (pr.z <= 0) {
+          this.events.push({ type: 'shatter', x: pr.x, y: pr.y, z: 0 });
+          return false;
+        }
+      }
+      const span = { x0: pr.x - def.halfW, x1: pr.x + def.halfW, z0: pr.z, z1: pr.z + def.height };
+
+      // The player can knock it out of the air or smash it.
+      if (swing && pr.team !== 'player' && Math.abs(pr.y - p.y) <= DEPTH_TOLERANCE && boxesOverlap(swing, span)) {
+        p.hitstop = 3;
+        this.addScore(def.score);
+        this.events.push({ type: 'hit', x: pr.x, y: pr.y, z: pr.z + def.height / 2, heavy: false, targetId: pr.id, byPlayer: true });
+        this.events.push({ type: 'score', amount: def.score, x: pr.x, y: pr.y, z: pr.z + 20 });
+        this.events.push(pr.kind === 'barrel' ? { type: 'break', x: pr.x, y: pr.y } : { type: 'shatter', x: pr.x, y: pr.y, z: pr.z });
+        return false;
+      }
+
+      for (const f of this.fighters) {
+        if (!f.hittable || f.team === pr.team || Math.abs(f.y - pr.y) > DEPTH_TOLERANCE) continue;
+        const hurt = worldBox(f, f.def.hurtbox);
+        if (!boxesOverlap(span, hurt)) continue;
+        f.hp = Math.max(0, f.hp - pr.damage);
+        f.hitstop = 5;
+        takeHit(f, pr.vx < 0 ? -1 : 1, BOTTLE.knockback, BOTTLE.hitstun, pr.knockdown);
+        if (f === p) this.combo = 0;
+        this.events.push({ type: 'hit', x: pr.x, y: f.y, z: Math.max(pr.z, f.z) + 24, heavy: pr.knockdown, targetId: f.id, byPlayer: false });
+        this.events.push(pr.kind === 'barrel' ? { type: 'break', x: pr.x, y: pr.y } : { type: 'shatter', x: pr.x, y: pr.y, z: pr.z });
+        return false;
+      }
+      return pr.x > this.camX - 120 && pr.x < this.camX + VIEW_W + 120;
+    });
   }
 
   private clamp(f: Fighter): void {
@@ -135,8 +291,11 @@ export class World {
     if (f.team === 'player') {
       f.x = Math.min(this.camX + VIEW_W - EDGE, Math.max(this.camX + EDGE, f.x));
     } else {
-      // Walking enemies may be off screen (they enter from the edges); knocked-back ones may not.
-      const m = f.canAct || f.state === 'attack' ? -50 : EDGE;
+      // Enemies walk in from beyond the edges. Once on screen they stay there, so none can hide.
+      const lo = this.camX + EDGE;
+      const hi = this.camX + VIEW_W - EDGE;
+      if (f.x >= lo && f.x <= hi) f.entered = true;
+      const m = f.entered ? EDGE : -50;
       f.x = Math.min(this.camX + VIEW_W - m, Math.max(this.camX + m, f.x));
     }
   }
@@ -173,7 +332,7 @@ export class World {
         onMoveConnected(p);
         b.broken = true;
         b.timer = BARREL.wreckTicks;
-        this.score += BARREL.score;
+        this.addScore(BARREL.score);
         this.events.push({ type: 'hit', x: b.x, y: b.y, z: 20, heavy: false, targetId: b.id, byPlayer: true });
         this.events.push({ type: 'break', x: b.x, y: b.y });
         if (b.drop) this.pickups.push({ id: this.nextId++, kind: b.drop, x: b.x, y: b.y, z: 14, vz: 3.2, age: 0 });
@@ -196,7 +355,9 @@ export class World {
       if (near && p.alive && p.z < 10) {
         const def = PICKUPS[k.kind];
         p.hp = Math.min(p.maxHp, p.hp + def.heal);
-        this.score += def.score;
+        this.lives += def.lives;
+        this.addScore(def.score);
+        if (def.score) this.events.push({ type: 'score', amount: def.score, x: k.x, y: k.y, z: 20 });
         this.events.push({ type: 'pickup', kind: k.kind, x: k.x, y: k.y });
         return false;
       }
@@ -211,6 +372,7 @@ export class World {
       this.lives--;
       p.hp = p.maxHp;
       p.invuln = 150;
+      if (this.timeLeft <= 0) this.timeLeft = TIMEOUT_REFILL * TICK_RATE;
       p.setState('getup', 16);
     } else {
       this.status = 'gameover';
@@ -224,6 +386,7 @@ export class World {
         this.locked = true;
         this.waveTick = 0;
         this.pending = [...wave.spawns];
+        this.hazards = (wave.hazards ?? []).map((h) => ({ ...h }));
         this.events.push({ type: 'wave', index: this.waveIndex });
       }
       return;
@@ -237,8 +400,15 @@ export class World {
       this.spawnEnemy(s.variant, s.side > 0 ? this.camX + VIEW_W + 30 : this.camX - 30, s.y);
       return false;
     });
+    for (const h of this.hazards) {
+      if (h.delay > this.waveTick) continue;
+      const y = h.y ?? this.player.y;
+      this.spawnProjectile('barrel', h.side > 0 ? this.camX + VIEW_W + 30 : this.camX - 30, y, 0, -h.side * ROLLING_BARREL.speed, 0, 'none', ROLLING_BARREL.damage, true);
+      h.delay = h.every ? h.delay + h.every : Infinity;
+    }
     if (this.pending.length === 0 && this.enemies.length === 0) {
       this.locked = false;
+      this.hazards = [];
       this.waveIndex++;
       if (this.waveIndex >= this.stage.waves.length) this.status = 'cleared';
       else this.events.push({ type: 'unlock' });
