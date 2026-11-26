@@ -109,7 +109,7 @@ await shot('title');
 await tap('Enter', 300);
 await waitScene('Stage');
 
-const stageCount = await page.evaluate(() => window.game.scene.getScene('Boot') && 4);
+const stageCount = await page.evaluate(() => window.game.scene.getScene('Boot') && 5);
 for (let n = 1; n <= stageCount; n++) {
   const name = `stage${n}`;
   await page.waitForTimeout(900);

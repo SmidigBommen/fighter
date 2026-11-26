@@ -17,6 +17,22 @@ export interface AiState {
   /** lineup: the move to use, and the side of the player to stand on. */
   move?: string;
   side?: 1 | -1;
+  /** Variants with a slam: where they are in the slam pattern. */
+  slam?: SlamState;
+}
+
+export interface SlamState {
+  /** Ticks until the next pattern may begin. Runs in every state, so hits do not postpone it. */
+  cooldown: number;
+  /** idle: between patterns. slam: in the slam move. gap: waiting to start the next part. */
+  stage: 'idle' | 'slam' | 'gap';
+  /** Shockwaves go both ways instead of only forward. */
+  both: boolean;
+  /** What follows the current slam in this pattern. */
+  next?: 'slam' | 'charge';
+  /** World tick at which the next part starts, and the tick at which a charge is given up. */
+  at: number;
+  until: number;
 }
 
 const ATTACK_BUFFER = 10;
@@ -106,6 +122,12 @@ export function frameAt(move: MoveDef, tick: number): MoveFrame | undefined {
     t -= f.ticks;
   }
   return move.air ? move.frames[move.frames.length - 1] : undefined;
+}
+
+/** Height of a leap at a move tick: a parabola from `from` to `to`, zero outside. */
+function leapHeight(leap: NonNullable<MoveDef['leap']>, tick: number): number {
+  const t = (tick - leap.from) / (leap.to - leap.from);
+  return t <= 0 || t >= 1 ? 0 : 4 * leap.height * t * (1 - t);
 }
 
 function startMove(f: Fighter, move: MoveDef): void {
@@ -244,6 +266,8 @@ export function updateFighter(f: Fighter, events: SimEvent[]): void {
       // A spin shows the kick to both sides in turn.
       if (move.around && f.moveTick % 5 === 0) f.facing = f.facing === 1 ? -1 : 1;
       if (move.throws?.ticks.includes(f.moveTick)) events.push({ type: 'throw', id: f.id, kind: move.throws.kind });
+      if (move.leap) f.z = leapHeight(move.leap, f.moveTick);
+      if (move.slamAt === f.moveTick) events.push({ type: 'slam', id: f.id, x: f.x, y: f.y });
       const canChain = f.moveConnected && move.cancelFrom !== undefined && f.moveTick >= move.cancelFrom;
       if (input.special && f.def.special && move.id !== f.def.special) {
         // The special also works as a way out of a chain that is going wrong.

@@ -1,9 +1,9 @@
 import { chars, variants } from '../data/characters';
-import { think } from './ai';
+import { slamDirs, think } from './ai';
 import { activeHitbox, boxesOverlap, resolveHits, worldBox } from './combat';
 import { Fighter, NEUTRAL, onMoveConnected, takeHit, updateFighter } from './fighter';
-import { BARREL, BOTTLE, PICKUPS, PICKUP_LIFE, PICKUP_REACH, PROJECTILES, ROLLING_BARREL } from './objects';
-import type { Breakable, Pickup, PickupKind, Projectile } from './objects';
+import { BARREL, BOTTLE, PICKUPS, PICKUP_LIFE, PICKUP_REACH, PROJECTILES, ROLLING_BARREL, SHOCKWAVE } from './objects';
+import type { Breakable, Pickup, PickupKind, Projectile, Shockwave } from './objects';
 import { DEPTH_TOLERANCE, EXTRA_LIFE_EVERY, GRAVITY, MAX_ATTACK_TOKENS, START_LIVES, TICK_RATE, VIEW_W } from './types';
 import type { Hazard, Intent, ProjectileKind, SimEvent, Spawn, StageDef } from './types';
 
@@ -53,6 +53,8 @@ export class World {
   breakables: Breakable[] = [];
   pickups: Pickup[] = [];
   projectiles: Projectile[] = [];
+  /** Slam shockwaves in flight. */
+  shockwaves: Shockwave[] = [];
   /** Events of the last step, for the view (sound, sparks, shake). */
   events: SimEvent[] = [];
   /** Ids of the enemies currently allowed to attack. */
@@ -156,6 +158,12 @@ export class World {
     return pr;
   }
 
+  spawnShockwave(x: number, y: number, dir: 1 | -1): Shockwave {
+    const s: Shockwave = { id: this.nextId++, x, y, dir, age: 0 };
+    this.shockwaves.push(s);
+    return s;
+  }
+
   step(input: Intent): void {
     this.events = [];
     if (this.status !== 'playing') return;
@@ -168,7 +176,11 @@ export class World {
       updateFighter(f, this.events);
       this.clamp(f);
     }
-    for (const e of this.events) if (e.type === 'throw') this.release(e.id, e.kind);
+    for (const e of this.events) {
+      if (e.type === 'throw') this.release(e.id, e.kind);
+      else if (e.type === 'slam') this.slam(e.id, e.x, e.y);
+    }
+    this.updateShockwaves();
 
     if (this.combo > 0 && --this.comboTimer <= 0) this.combo = 0;
     for (const hit of resolveHits(this.fighters, this.events)) {
@@ -238,6 +250,32 @@ export class World {
     if (!f) return;
     const damage = Math.round(BOTTLE.damage * (f.variant?.damage ?? 1));
     this.spawnProjectile(kind, f.x + f.facing * 18 * f.scale, f.y, 30 * f.scale, f.facing * BOTTLE.speed, BOTTLE.vz, f.team, damage, f.variant?.heavy ?? false);
+  }
+
+  /** A slam landed: the waves start at the feet. */
+  private slam(id: number, x: number, y: number): void {
+    const f = this.fighters.find((o) => o.id === id);
+    if (f) for (const dir of slamDirs(f)) this.spawnShockwave(x, y, dir);
+  }
+
+  /** Each wave sweeps one step along its lane and knocks the player down if it passes under them. */
+  private updateShockwaves(): void {
+    const p = this.player;
+    this.shockwaves = this.shockwaves.filter((s) => {
+      const from = s.x;
+      s.x += s.dir * SHOCKWAVE.speed;
+      s.age++;
+      const reach = Math.min(from, s.x) <= p.x + p.def.hurtbox.x1 && Math.max(from, s.x) >= p.x + p.def.hurtbox.x0;
+      if (!s.spent && p.hittable && Math.abs(p.y - s.y) <= DEPTH_TOLERANCE && p.z < SHOCKWAVE.height && reach) {
+        s.spent = true;
+        p.hp = Math.max(0, p.hp - SHOCKWAVE.damage);
+        p.hitstop = 5;
+        takeHit(p, s.dir, SHOCKWAVE.knockback, 0, true);
+        this.combo = 0;
+        this.events.push({ type: 'hit', x: p.x, y: p.y, z: 6, heavy: true, targetId: p.id, byPlayer: false });
+      }
+      return s.age < SHOCKWAVE.life;
+    });
   }
 
   private updateProjectiles(): void {

@@ -25,8 +25,8 @@ export class FighterView {
     const blink = (f.invuln > 0 && f.state !== 'getup') || (f.state === 'dead' && f.timer < 45);
     this.sprite.setVisible(!blink || tick % 6 < 3);
 
-    // White flashes warn of a charge or a throw. An enraged boss pulses red.
-    const windup = f.team === 'enemy' && f.state === 'attack' && (f.move?.lunge || f.move?.throws) && f.moveTick < 22;
+    // White flashes warn of a charge, a throw or a slam. An enraged boss pulses red.
+    const windup = f.team === 'enemy' && f.state === 'attack' && (f.move?.lunge || f.move?.throws || f.move?.slamAt) && f.moveTick < 22;
     const enraged = f.variant?.boss && f.alive && f.hp < f.maxHp / 2;
     if (windup && tick % 6 < 3) this.sprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
     else this.sprite.setTint(enraged && tick % 16 < 8 ? 0xff5050 : this.tint).setTintMode(Phaser.TintModes.MULTIPLY);

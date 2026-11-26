@@ -9,8 +9,8 @@ import type { Label } from '../view/text';
 const LINES = [
   'SIX IN THE MORNING.',
   '',
-  'THE FOREMAN IS DOWN.',
-  'HIS CREW HAS GONE HOME.',
+  'THE OVERSEER IS DOWN.',
+  'THE YARD IS EMPTY.',
   '',
   'THE DAY SHIFT WALKS IN',
   'AND NOTICES NOTHING.',

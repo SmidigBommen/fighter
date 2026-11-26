@@ -175,6 +175,20 @@ STAGES: dict[str, dict] = {
         "cars": [1000, 1900],
         "grade": (-150, 1.15, 0.82),
     },
+    # The crew's yard at first light: fences and garages in pale light.
+    "stage5": {
+        "width": 1536,
+        "wall": (
+            f"brick_end_l garage garage brick_end_r {_fences(5)} brick shutter garage graffiti brick_end_r "
+            f"{_fences(8)} brick garage pipe garage shutter brick_end_r stone_pillar shop stone_pillar "
+            f"brick_end_l garage brick"
+        ),
+        "signs": [("banner-hor/banner-hor1.png", 610, 4)],
+        "lamps": [330, 980],
+        "bushes": [40, 760],
+        "cars": [560],
+        "grade": (-12, 0.7, 1.12),
+    },
 }
 
 
@@ -362,7 +376,26 @@ def build_fx() -> list[str]:
     for i in range(4):
         bottle.paste(one.rotate(-90 * i), (i * 12, 0))
     bottle.save(OUT / "bottle.png")
-    return ["font.png", "font.txt", "spark.png (4 frames)", f"pickups.png ({len(ICONS)} frames)", "bottle.png (4 frames)"]
+
+    # Slam shockwave: 4 frames of 32x16, a bright crest on the ground that breaks up into dust.
+    sw, sh = 32, 16
+    wave = Image.new("RGBA", (sw * 4, sh))
+    wd = ImageDraw.Draw(wave)
+    crest, dust, dark = (255, 250, 220, 255), (214, 196, 160, 255), (150, 132, 110, 255)
+    for f, (height, puffs, col) in enumerate(((12, 5, crest), (10, 5, dust), (7, 4, dust), (4, 3, dark))):
+        for i in range(puffs):
+            cx = f * sw + 3 + i * (sw - 6) // (puffs - 1)
+            h = max(2, height - (i * 5 + f * 3) % 5)
+            r = 3 - f // 2
+            wd.ellipse((cx - r, sh - 1 - h, cx + r, sh - 1 - h + 2 * r), fill=col)
+            if f < 2:
+                wd.rectangle((cx - 1, sh - h, cx + 1, sh - 1), fill=col)
+        wd.line((f * sw + 1, sh - 1, f * sw + sw - 2, sh - 1), fill=dark if f else crest)
+    wave.save(OUT / "shockwave.png")
+    return [
+        "font.png", "font.txt", "spark.png (4 frames)", f"pickups.png ({len(ICONS)} frames)", "bottle.png (4 frames)",
+        "shockwave.png (4 frames)",
+    ]
 
 
 AUDIO = {

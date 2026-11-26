@@ -230,6 +230,43 @@ const punkCharge: MoveDef = {
   lunge: { from: 24, to: 62, speed: 3.6 },
 };
 
+// Ground slam: a leap on the spot that cannot be hit, the landing at tick 30 (SHOCKWAVE.windup), a short stop.
+const slam: MoveDef = {
+  id: 'slam',
+  anim: 'punch',
+  frames: [
+    { frame: 0, ticks: 4 },
+    { frame: 1, ticks: 22 },
+    { frame: 2, ticks: 10 },
+    { frame: 0, ticks: 8 },
+  ],
+  damage: 0,
+  hitstop: 0,
+  hitstun: 0,
+  knockback: 0,
+  knockdown: false,
+  invuln: true,
+  leap: { from: 2, to: 28, height: 26 },
+  slamAt: 30,
+};
+
+// The charge that follows a slam: a shorter rush than punk_charge, from close by.
+const slamCharge: MoveDef = {
+  id: 'slam_charge',
+  anim: 'punch',
+  frames: [
+    { frame: 1, ticks: 22 },
+    { frame: 2, ticks: 30, hit: { x0: 4, x1: 34, z0: 14, z1: 46 } },
+    { frame: 0, ticks: 26 },
+  ],
+  damage: 12,
+  hitstop: 7,
+  hitstun: 0,
+  knockback: 3.6,
+  knockdown: true,
+  lunge: { from: 22, to: 52, speed: 3.6 },
+};
+
 export const punk: CharDef = {
   id: 'punk',
   anims: { idle: 4, walk: 4, punch: 3, hurt: 4 },
@@ -237,7 +274,7 @@ export const punk: CharDef = {
   speedX: 1.15,
   speedY: 0.75,
   hp: 40,
-  moves: { punk_punch: punkPunch, punk_throw: punkThrow, punk_volley: punkVolley, punk_charge: punkCharge },
+  moves: { punk_punch: punkPunch, punk_throw: punkThrow, punk_volley: punkVolley, punk_charge: punkCharge, slam, slam_charge: slamCharge },
   chain: ['punk_punch'],
   canJump: false,
   poses: {
@@ -268,5 +305,10 @@ export const variants: Record<string, VariantDef> = {
   foreman: {
     ...base, id: 'foreman', name: 'THE FOREMAN', tint: 0x8c8cb4, scale: 1.4, hp: 420, speed: 1.05, damage: 2, heavy: true, score: 20000, boss: true,
     ranged: 'punk_volley', charge: 'punk_charge',
+  },
+  // Final boss: no throw and no charge from afar. It leaps and slams the ground, see slamThink in src/sim/ai.ts.
+  overseer: {
+    ...base, id: 'overseer', name: 'THE OVERSEER', tint: 0x4fd8e8, scale: 1.5, hp: 950, speed: 1.1, damage: 1.25, score: 30000, boss: true,
+    slam: { move: 'slam', charge: 'slam_charge' },
   },
 };

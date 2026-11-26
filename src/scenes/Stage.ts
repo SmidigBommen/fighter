@@ -158,6 +158,11 @@ export class Stage extends Phaser.Scene {
       } else if (e.type === 'shatter') {
         this.sound.play('glass', { volume: 0.5 });
         this.spark(e.x, e.y, e.z, 0.7);
+      } else if (e.type === 'slam') {
+        this.sound.play('thud', { volume: 1 });
+        this.shake = Math.max(this.shake, 10);
+        this.dust(e.x, e.y, 1);
+        this.dust(e.x, e.y, -1);
       } else if (e.type === 'special') {
         this.sound.play('swish', { volume: 0.7 });
       } else if (e.type === 'pickup') {
@@ -186,6 +191,11 @@ export class Stage extends Phaser.Scene {
           this.cameras.main.flash(250, 255, 255, 255);
         }
       }
+    }
+    // Each shockwave leaves dust along the stretch it crossed this tick.
+    for (const s of w.shockwaves) {
+      this.dust(s.x, s.y, s.dir);
+      this.dust(s.x - s.dir * 15, s.y, s.dir);
     }
     if (w.status === 'gameover') {
       this.hud.announce('GAME OVER', '', 1e6);
@@ -249,6 +259,16 @@ export class Stage extends Phaser.Scene {
       .image(Math.round(x), Math.round(y - z), 'spark', 0)
       .setDepth(y + 1)
       .setScale(scale);
+    this.sparks.push({ img, age: 0 });
+  }
+
+  /** A puff of the shockwave strip on the ground. It plays out like a spark. */
+  private dust(x: number, y: number, dir: 1 | -1): void {
+    const img = this.add
+      .image(Math.round(x), Math.round(y) + 2, 'shockwave', 0)
+      .setOrigin(0.5, 1)
+      .setFlipX(dir < 0)
+      .setDepth(y + 1);
     this.sparks.push({ img, age: 0 });
   }
 
