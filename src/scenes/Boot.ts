@@ -30,6 +30,7 @@ export class Boot extends Phaser.Scene {
     this.load.spritesheet('barrel', 'barrel.png', { frameWidth: 32, frameHeight: 48 });
     this.load.spritesheet('pickups', 'pickups.png', { frameWidth: 16, frameHeight: 16 });
     this.load.spritesheet('spark', 'spark.png', { frameWidth: 24, frameHeight: 24 });
+    this.load.spritesheet('shockwave', 'shockwave.png', { frameWidth: 32, frameHeight: 16 });
     this.load.image('font_img', 'font.png');
     this.load.text('font_chars', 'font.txt');
     for (const key of ['hit_light', 'hit_mid', 'hit_heavy', 'thud', 'pickup', 'extralife', 'blip', 'glass', 'swish', ...music]) {

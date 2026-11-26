@@ -55,6 +55,25 @@ export const PROJECTILES: Record<ProjectileKind, { halfW: number; height: number
 export const BOTTLE = { speed: 3.2, vz: 0.9, damage: 8, hitstun: 18, knockback: 1.4 };
 export const ROLLING_BARREL = { speed: 2.3, damage: 12 };
 
+/** A wave along the ground from a boss's slam. It hits only the player, and only once. */
+export interface Shockwave {
+  id: number;
+  x: number;
+  y: number;
+  dir: 1 | -1;
+  /** Ticks in flight. */
+  age: number;
+  /** Has hit the player. */
+  spent?: boolean;
+}
+
+/**
+ * windup: ticks from the start of the slam move to the impact. speed in px per tick, life in ticks.
+ * height: a player this far off the ground is clear. A jump pressed on the first wind-up tick
+ * is only that high during move ticks 30 to 33, which is why the wave is fast and short.
+ */
+export const SHOCKWAVE = { windup: 30, speed: 30, life: 4, height: 8, damage: 20, knockback: 3 };
+
 export const BARREL = { halfW: 11, height: 32, blockX: 15, blockY: 6, score: 100, wreckTicks: 120 };
 export const PICKUP_LIFE = 720;
 export const PICKUP_REACH = { x: 14, y: 9 };

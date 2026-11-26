@@ -155,6 +155,35 @@ serves `dist/` and the score API on port 80, and stores the table in `/data/scor
 Mount a persistent volume at `/data` in Coolify, or the table is empty after each deploy.
 Scores are not authenticated: anyone can post any score.
 
+### Status on 2026-11-26
+
+**Stage 5.** `src/data/stage5.ts`, after the Last Block. The Foreman still ends stage 4; the ending
+now follows stage 5.
+
+| Stage | Name | New in it | Boss |
+|---|---|---|---|
+| 5 | The Yard | two short waves, then the boss alone | The Overseer: leaps and slams the ground |
+
+**The Overseer** (`variants.overseer`, 950 health, no throw, no charge from afar). Between punches
+it walks to within 80 px of the player in the player's lane and uses the move `slam`: a leap on
+the spot that cannot be hit, landing 30 ticks after it starts. The landing sends shockwaves along
+the lane, 120 px in 4 ticks. A wave takes 20 health and knocks down. Jump when the boss leaves the
+ground, or change lane, and it misses. The pattern follows the boss's health:
+
+| Health | Pattern |
+|---|---|
+| above 66% | one slam, one wave in the direction it faces |
+| 33% to 66% | two slams, each with waves both ways |
+| 33% and below | one slam with waves both ways, then a short charge (`slam_charge`) at a player still standing |
+
+At least 120 ticks pass between patterns (200 to 300 as tuned). The numbers are `SHOCKWAVE` in
+`src/sim/objects.ts`, the timing constants at the top of `src/sim/ai.ts` (`slamThink`), and the two
+moves in `src/data/characters.ts`. The wave must stay this fast and short: a jump lasts 35 ticks, so
+one pressed on the first wind-up tick is only clear of the ground during move ticks 30 to 33.
+
+Measured in a one-life fight against the boss alone, seeds 1 to 50: the test bot, which never
+jumps, lost all 50; the same bot jumping when the leap starts won all 50, median fight 83 seconds.
+
 Run with `pnpm dev`. Controls: arrows or WASD to move, Z or J to attack, X, K or Space to jump, C or L for the special,
 P to pause, H to show hitboxes. Gamepad: stick or d-pad, X attack, A jump, B or Y special,
 a shoulder button to run, Start to pause.
@@ -167,7 +196,7 @@ Still open: two players, grab and throw, hand-drawn knockdown frames, more enemy
 |---|---|
 | `execution/fetch_assets.py [ids]` | Download packs listed in `assets/sources.toml` from OpenGameArt, unpack them, regenerate the manifest and credits. Add a pack by adding an entry to the TOML file. |
 | `execution/contact_sheet.py -o out.png "glob" ...` | Put matching PNG files on one labelled image for visual comparison. |
-| `execution/build_assets.py [sprites stage fx audio]` | Build `assets/game/` from `assets/raw/`: re-anchored sprite strips, the composed stage 1 image, the generated font and spark, converted audio. The stage layouts are the `STAGES` table in the script. Also `pnpm assets`. |
+| `execution/build_assets.py [sprites stage fx audio]` | Build `assets/game/` from `assets/raw/`: re-anchored sprite strips, the composed stage 1 image, the generated font, spark and slam shockwave, converted audio. The stage layouts are the `STAGES` table in the script. Also `pnpm assets`. |
 | `node execution/smoke.mjs [--seconds 8] [--out dir]` | With `pnpm dev` running, goes through the whole game in headless Chromium: every stage, the ending, name entry, score table, game over and continue. Saves screenshots and fails on page errors. Adds one entry named BOT to the dev score table (`data/scores.json`). |
 | `pnpm test` | Vitest on the simulation in `src/sim/`. Includes a bot (`src/sim/bot.ts`) that must finish every stage. |
 | `pnpm start` | Serve the built game and the score API as in production. Set `PORT` and `SCORES_FILE` for local use. |

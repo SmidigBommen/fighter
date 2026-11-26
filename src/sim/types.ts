@@ -43,6 +43,10 @@ export interface MoveDef {
   cost?: number;
   /** Releases a projectile at each of these move ticks. */
   throws?: { ticks: number[]; kind: ProjectileKind };
+  /** A jump on the spot: the fighter is off the ground while the move tick is between from and to. */
+  leap?: { from: number; to: number; height: number };
+  /** Move tick at which the fighter lands a ground slam: a slam event, and shockwaves along the lane. */
+  slamAt?: number;
 }
 
 export type ProjectileKind = 'bottle' | 'barrel';
@@ -97,6 +101,8 @@ export interface VariantDef {
   ranged?: string;
   /** Lunging move started from a distance, once lined up with the player. */
   charge?: string;
+  /** Ground-slam patterns between punches: the move to leap with and the move to charge with afterwards. */
+  slam?: { move: string; charge: string };
   /** Shown with a warning and the boss music; gets faster below half health. */
   boss?: boolean;
 }
@@ -176,6 +182,8 @@ export type SimEvent =
   /** A fighter's move reached a throw tick. */
   | { type: 'throw'; id: number; kind: ProjectileKind }
   | { type: 'shatter'; x: number; y: number; z: number }
+  /** A fighter's slam move reached its impact tick. x and y are where the shockwaves start. */
+  | { type: 'slam'; id: number; x: number; y: number }
   | { type: 'special' }
   /** Points to show floating at a place. */
   | { type: 'score'; amount: number; x: number; y: number; z: number }
