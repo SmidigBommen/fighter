@@ -76,23 +76,26 @@ async function botPlays(ms) {
   await release();
 }
 
-/** Walks right and knocks out whatever spawns, until the stage is cleared. The player cannot die. */
+/** Runs right and knocks out whatever spawns, until the stage is cleared. The player cannot die. */
 async function rushStage(name) {
+  await set('Shift', true);
   await set('ArrowRight', true);
   let bossShot = false;
-  for (let t = 0; t < 120000; t += 100) {
+  for (let t = 0; t < 120000; t += 50) {
     const state = await page.evaluate(() => {
       const w = window.world;
       w.player.hp = w.player.maxHp;
       const boss = w.enemies.some((e) => e.variant.boss);
       for (const e of w.enemies) {
         if (e.hp > 0 && e.state !== 'fall') { e.hp = 0; e.vz = 3; e.vx = 2; e.bounced = false; e.setState('fall'); }
+        // Knocked-out enemies leave at once, so the next spawn is not held up.
+        if (e.state === 'dead') e.timer = Math.min(e.timer, 5);
       }
       return { status: w.status, boss };
     });
     if (state.boss && !bossShot) { bossShot = true; await page.waitForTimeout(400); await shot(`${name}-boss`); }
     if (state.status !== 'playing') break;
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(50);
   }
   await release();
   check((await read()).status === 'cleared', `${name} cleared`);
